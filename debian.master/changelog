@@ -1,5 +1,9 @@
 linux (3.8.0-27.40) raring; urgency=low
 
+  [Brad Figg]
+
+  * UBUNTU: [Config] CONFIG_ARM_ERRATA_643719=y
+
  -- Brad Figg <brad.figg@canonical.com>  Mon, 08 Jul 2013 16:06:32 -0700
 
 linux (3.8.0-27.39) raring; urgency=low
