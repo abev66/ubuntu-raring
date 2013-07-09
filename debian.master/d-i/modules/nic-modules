@@ -167,3 +167,4 @@ yellowfin ?
 znet ?
 vmxnet3 ?
 xen-netfront ?
+qlcnic ?
