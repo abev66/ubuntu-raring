@@ -63,6 +63,7 @@ struct vhost_ubuf_ref {
 struct vhost_ubuf_ref *vhost_ubuf_alloc(struct vhost_virtqueue *, bool zcopy);
 void vhost_ubuf_put(struct vhost_ubuf_ref *);
 void vhost_ubuf_put_and_wait(struct vhost_ubuf_ref *);
+void vhost_ubuf_put_wait_and_free(struct vhost_ubuf_ref *);
 
 struct ubuf_info;
 
