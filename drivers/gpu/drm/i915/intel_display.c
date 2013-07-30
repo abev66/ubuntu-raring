@@ -8848,17 +8848,6 @@ static void quirk_invert_brightness(struct drm_device *dev)
 	DRM_INFO("applying inverted panel brightness quirk\n");
 }
 
-/*
- * Some machines (Dell XPS13) suffer broken backlight controls if
- * BLM_PCH_PWM_ENABLE is set.
- */
-static void quirk_no_pcm_pwm_enable(struct drm_device *dev)
-{
-	struct drm_i915_private *dev_priv = dev->dev_private;
-	dev_priv->quirks |= QUIRK_NO_PCH_PWM_ENABLE;
-	DRM_INFO("applying no-PCH_PWM_ENABLE quirk\n");
-}
-
 struct intel_quirk {
 	int device;
 	int subsystem_vendor;
@@ -8895,9 +8884,6 @@ static const struct intel_dmi_quirk intel_dmi_quirks[] = {
 };
 
 static struct intel_quirk intel_quirks[] = {
-	/* Dell XPS13 SandyBridge */
-	{ 0x0116, 0x1028, 0x052e, quirk_no_pcm_pwm_enable },
-
 	/* HP Mini needs pipe A force quirk (LP: #322104) */
 	{ 0x27ae, 0x103c, 0x361a, quirk_pipea_force },
 
