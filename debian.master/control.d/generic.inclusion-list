@@ -1,4 +1,7 @@
 arch/*/{crypto,kernel,oprofile}
+arch/*/kvm/kvm.ko
+arch/x86/kvm/kvm-intel.ko
+arch/x86/kvm/kvm-amd.ko
 crypto/*
 drivers/acpi/video.ko
 drivers/acpi/sbshc.ko
@@ -15,6 +18,7 @@ drivers/ata/libahci.ko
 drivers/block/nbd.ko
 drivers/block/floppy.ko
 drivers/block/cryptoloop.ko
+drivers/block/rbd.ko
 drivers/char/hangcheck-timer.ko
 drivers/char/lp.ko
 drivers/char/nvram.ko
