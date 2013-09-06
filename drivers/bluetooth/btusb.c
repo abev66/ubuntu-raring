@@ -49,7 +49,7 @@ static struct usb_driver btusb_driver;
 #define BTUSB_BROKEN_ISOC	0x20
 #define BTUSB_WRONG_SCO_MTU	0x40
 #define BTUSB_ATH3012		0x80
-#define BTUSB_BCM_PATCHRAM	0x100
+#define BTUSB_BCM_PATCHRAM	0x800
 
 static struct usb_device_id btusb_table[] = {
 	/* Generic Bluetooth USB device */
@@ -231,14 +231,13 @@ static struct usb_device_id blacklist_table[] = {
 #define BTUSB_ISOC_RUNNING	2
 #define BTUSB_SUSPENDING	3
 #define BTUSB_DID_ISO_RESUME	4
-#define BTUSB_FIRMWARE_DONE	5
+#define BTUSB_FIRMWARE_DONE	7
 
 struct btusb_data {
 	struct hci_dev       *hdev;
 	struct usb_device    *udev;
 	struct usb_interface *intf;
 	struct usb_interface *isoc;
-	const struct usb_device_id *id;
 
 	spinlock_t lock;
 
@@ -943,24 +942,20 @@ static void btusb_waker(struct work_struct *work)
 	usb_autopm_put_interface(data->intf);
 }
 
-#define PATCHRAM_TIMEOUT	1000
 #define PATCHRAM_NAME_LEN	20
+#define PATCHRAM_BUF_SIZE	(256 + 4)
 
 static void btusb_load_firmware(struct hci_dev *hdev)
 {
 	struct btusb_data *data = hci_get_drvdata(hdev);
 	struct usb_device *udev = data->udev;
-	const struct usb_device_id *id = data->id;
 	size_t pos = 0;
 	int err = 0;
 	char filename[PATCHRAM_NAME_LEN];
 	const struct firmware *fw;
+	u8 *buf = NULL;
+	u8 val = 0;
 
-	unsigned char reset_cmd[] = { 0x03, 0x0c, 0x00 };
-	unsigned char download_cmd[] = { 0x2e, 0xfc, 0x00 };
-
-	if (!(id->driver_info & BTUSB_BCM_PATCHRAM))
-		return;
 	if (test_and_set_bit(BTUSB_FIRMWARE_DONE, &data->flags))
 		return;
 
@@ -972,40 +967,43 @@ static void btusb_load_firmware(struct hci_dev *hdev)
 		return;
 	}
 
-	if (usb_control_msg(udev, usb_sndctrlpipe(udev, 0), 0, USB_TYPE_CLASS, 0, 0,
-		reset_cmd, sizeof(reset_cmd), PATCHRAM_TIMEOUT) < 0) {
-		err = -1;
+	buf = kmalloc(PATCHRAM_BUF_SIZE, GFP_KERNEL);
+	if (!buf)
 		goto out;
-	}
+
+	err= hci_send_cmd(hdev, 0x0c03, 1, &val);
+	if (err)
+		goto out;
 	msleep(300);
 
-	if (usb_control_msg(udev, usb_sndctrlpipe(udev, 0), 0, USB_TYPE_CLASS, 0, 0,
-		download_cmd, sizeof(download_cmd), PATCHRAM_TIMEOUT) < 0) {
-		err = -1;
+	err = hci_send_cmd(hdev, 0xfc2e, 1, &val);
+	if (err)
 		goto out;
-	}
-	msleep(300);
+	msleep(1000);
 
 	while (pos < fw->size) {
 		size_t len;
 		len = fw->data[pos + 2] + 3;
-		if ((pos + len > fw->size) ||
-			(usb_control_msg(udev, usb_sndctrlpipe(udev, 0), 0,
-			USB_TYPE_CLASS, 0, 0, (void *)fw->data + pos, len,
-			PATCHRAM_TIMEOUT) < 0)) {
-			err = -1;
+		if (pos + len > fw->size) {
+			err = -EINVAL;
 			goto out;
 		}
+		memcpy(buf, fw->data + pos, len);
+		err = hci_send_cmd(hdev, le16_to_cpu(*(u16*)buf),
+					*(buf + sizeof(u16)), buf + sizeof(u16) + 1);
+		if (err)
+			goto out;
 		pos += len;
 	}
 
-	err = (usb_control_msg(udev, usb_sndctrlpipe(udev, 0), 0, USB_TYPE_CLASS, 0, 0,
-		reset_cmd, sizeof(reset_cmd), PATCHRAM_TIMEOUT) < 0);
+	err = hci_send_cmd(hdev, 0x0c03, 1, &val);
 out:
 	if (err)
-		BT_INFO("fail to load firmware, may not work correctly");
+		BT_INFO("fail to load firmware");
 	else
 		BT_INFO("firmware loaded");
+	if (buf)
+		kfree(buf);
 	release_firmware(fw);
 }
 
@@ -1094,8 +1092,6 @@ static int btusb_probe(struct usb_interface *intf,
 	init_usb_anchor(&data->isoc_anchor);
 	init_usb_anchor(&data->deferred);
 
-	data->id = id;
-
 	hdev = hci_alloc_dev();
 	if (!hdev)
 		return -ENOMEM;
@@ -1112,7 +1108,9 @@ static int btusb_probe(struct usb_interface *intf,
 	hdev->flush    = btusb_flush;
 	hdev->send     = btusb_send_frame;
 	hdev->notify   = btusb_notify;
-	hdev->load_firmware = btusb_load_firmware;
+
+	if (id->driver_info & BTUSB_BCM_PATCHRAM)
+		hdev->load_firmware = btusb_load_firmware;
 
 	/* Interface numbers are hardcoded in the specification */
 	data->isoc = usb_ifnum_to_if(data->udev, 1);
