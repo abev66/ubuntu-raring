@@ -184,11 +184,26 @@
 #define CARD_SHARE_BAROSSA_SD		0x01
 #define CARD_SHARE_BAROSSA_MS		0x02
 
+/* CARD_DRIVE_SEL */
+#define MS_DRIVE_8mA			(0x01 << 6)
+#define MMC_DRIVE_8mA			(0x01 << 4)
+#define XD_DRIVE_8mA			(0x01 << 2)
+#define GPIO_DRIVE_8mA			0x01
+#define RTS5209_CARD_DRIVE_DEFAULT	(MS_DRIVE_8mA | MMC_DRIVE_8mA |\
+						XD_DRIVE_8mA | GPIO_DRIVE_8mA)
+#define RTL8411_CARD_DRIVE_DEFAULT	(MS_DRIVE_8mA | MMC_DRIVE_8mA |\
+						XD_DRIVE_8mA)
+#define RTSX_CARD_DRIVE_DEFAULT		(MS_DRIVE_8mA | GPIO_DRIVE_8mA)
+
 /* SD30_DRIVE_SEL */
 #define DRIVER_TYPE_A			0x05
 #define DRIVER_TYPE_B			0x03
 #define DRIVER_TYPE_C			0x02
 #define DRIVER_TYPE_D			0x01
+#define CFG_DRIVER_TYPE_A		0x02
+#define CFG_DRIVER_TYPE_B		0x03
+#define CFG_DRIVER_TYPE_C		0x01
+#define CFG_DRIVER_TYPE_D		0x00
 
 /* FPDCTL */
 #define SSC_POWER_DOWN			0x01
@@ -682,6 +697,8 @@
 
 #define DUMMY_REG_RESET_0		0xFE90
 
+#define AUTOLOAD_CFG_BASE		0xFF00
+
 /* Memory mapping */
 #define SRAM_BASE			0xE600
 #define RBUF_BASE			0xF400
@@ -689,6 +706,45 @@
 #define PPBUF_BASE2			0xFA00
 #define IMAGE_FLAG_ADDR0		0xCE80
 #define IMAGE_FLAG_ADDR1		0xCE81
+
+/* Phy register */
+#define PHY_PCR				0x00
+#define PHY_RCR0			0x01
+#define PHY_RCR1			0x02
+#define PHY_RCR2			0x03
+#define PHY_RTCR			0x04
+#define PHY_RDR				0x05
+#define PHY_TCR0			0x06
+#define PHY_TCR1			0x07
+#define PHY_TUNE			0x08
+#define PHY_IMR				0x09
+#define PHY_BPCR			0x0A
+#define PHY_BIST			0x0B
+#define PHY_RAW_L			0x0C
+#define PHY_RAW_H			0x0D
+#define PHY_RAW_DATA			0x0E
+#define PHY_HOST_CLK_CTRL		0x0F
+#define PHY_DMR				0x10
+#define PHY_BACR			0x11
+#define PHY_IER				0x12
+#define PHY_BCSR			0x13
+#define PHY_BPR				0x14
+#define PHY_BPNR2			0x15
+#define PHY_BPNR			0x16
+#define PHY_BRNR2			0x17
+#define PHY_BENR			0x18
+#define PHY_REG_REV			0x19
+#define PHY_FLD0			0x1A
+#define PHY_FLD1			0x1B
+#define PHY_FLD2			0x1C
+#define PHY_FLD3			0x1D
+#define PHY_FLD4			0x1E
+#define PHY_DUM_REG			0x1F
+
+#define LCTLR				0x80
+#define PCR_SETTING_REG1		0x724
+#define PCR_SETTING_REG2		0x814
+#define PCR_SETTING_REG3		0x747
 
 #define rtsx_pci_init_cmd(pcr)		((pcr)->ci = 0)
 
@@ -711,6 +767,7 @@ struct pcr_ops {
 						u8 voltage);
 	unsigned int	(*cd_deglitch)(struct rtsx_pcr *pcr);
 	int		(*conv_clk_and_div_n)(int clk, int dir);
+	void		(*fetch_vendor_settings)(struct rtsx_pcr *pcr);
 };
 
 enum PDEV_STAT  {PDEV_STAT_IDLE, PDEV_STAT_RUN};
@@ -752,7 +809,6 @@ struct rtsx_pcr {
 	struct completion		*finish_me;
 
 	unsigned int			cur_clock;
-	bool				ms_pmos;
 	bool				remove_pci;
 	bool				msi_en;
 
@@ -769,6 +825,16 @@ struct rtsx_pcr {
 #define IC_VER_C			2
 #define IC_VER_D			3
 	u8				ic_version;
+
+	u8				sd30_drive_sel_1v8;
+	u8				sd30_drive_sel_3v3;
+	u8				card_drive_sel;
+#define ASPM_L1_EN			0x02
+	u8				aspm_en;
+
+#define PCR_MS_PMOS			(1 << 0)
+#define PCR_REVERSE_SOCKET		(1 << 1)
+	u32				flags;
 
 	const u32			*sd_pull_ctl_enable_tbl;
 	const u32			*sd_pull_ctl_disable_tbl;
